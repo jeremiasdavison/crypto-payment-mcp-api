@@ -52,6 +52,9 @@ from tools.wallet_tools import (
 from tools.payment_tools import preparar_transaccion, ejecutar_pago
 from tools.price_tools import get_token_price, get_profit_index, get_multi_price
 
+RAILWAY_URL = os.getenv("RAILWAY_PUBLIC_DOMAIN", "")
+servers = [{"url": f"https://{RAILWAY_URL}"}] if RAILWAY_URL else []
+
 app = FastAPI(
     title="Crypto Payments API",
     description=(
@@ -61,6 +64,7 @@ app = FastAPI(
         "Requiere header `X-API-Key` en todos los endpoints."
     ),
     version="0.1.0",
+    servers=servers or [{"url": "https://crypto-payment-mcp-api-production.up.railway.app"}],
 )
 
 app.add_middleware(
