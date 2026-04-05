@@ -2,28 +2,20 @@ import secrets
 from eth_account import Account
 from web3 import Web3
 
+from tools.networks import ALL_NETWORKS, TESTNETS, DEFAULT_TESTNET
 
-# ─── Redes soportadas ────────────────────────────────────────────────────────
-
-REDES = {
-    "Base Sepolia (testnet)": "https://sepolia.base.org",
-    "Polygon Mainnet": "https://polygon-rpc.com",
-    "Amoy Testnet (Polygon)": "https://rpc-amoy.polygon.technology",
-}
+# Alias para compatibilidad con api_server.py
+REDES = ALL_NETWORKS
 
 
-def consultar_balance_onchain(address: str, red: str = "Base Sepolia (testnet)") -> dict:
-    """
-    Consulta el balance nativo (ETH/MATIC) de una dirección en la red elegida.
-    En Fase 2 se expandirá para leer tokens ERC-20 (USDC) via Alchemy.
-    """
+def consultar_balance_onchain(address: str, red: str = DEFAULT_TESTNET) -> dict:
+    """Consulta el balance nativo (ETH/POL) de una dirección en la red elegida."""
     if not Web3.is_address(address):
         return {"error": f"Dirección inválida: {address}"}
 
-    rpc_url = REDES.get(red)
+    rpc_url = ALL_NETWORKS.get(red)
     if not rpc_url:
-        redes_disponibles = list(REDES.keys())
-        return {"error": f"Red desconocida. Opciones: {redes_disponibles}"}
+        return {"error": f"Red desconocida. Opciones: {list(ALL_NETWORKS.keys())}"}
 
     try:
         web3 = Web3(Web3.HTTPProvider(rpc_url))
@@ -33,12 +25,14 @@ def consultar_balance_onchain(address: str, red: str = "Base Sepolia (testnet)")
         balance_wei = web3.eth.get_balance(address)
         balance = float(web3.from_wei(balance_wei, "ether"))
 
-        token_nativo = "MATIC" if "Polygon" in red or "Amoy" in red else "ETH"
+        # Obtener el token nativo desde la config centralizada
+        cfg = {**TESTNETS, **{k: {"token": "ETH"} for k in ALL_NETWORKS if k not in TESTNETS}}
+        token = cfg.get(red, {}).get("token", "ETH")
 
         return {
             "address": address,
             "balance": round(balance, 6),
-            "token": token_nativo,
+            "token": token,
             "red": red,
             "source": "onchain",
         }
@@ -52,9 +46,8 @@ def consultar_balance_todas_las_redes(address: str) -> dict:
         return {"error": f"Dirección inválida: {address}"}
 
     resultados = {}
-    for nombre_red in REDES:
-        resultado = consultar_balance_onchain(address, nombre_red)
-        resultados[nombre_red] = resultado
+    for nombre_red in ALL_NETWORKS:
+        resultados[nombre_red] = consultar_balance_onchain(address, nombre_red)
     return resultados
 
 

@@ -31,6 +31,7 @@ from tools.wallet_tools import (
 )
 from tools.payment_tools import preparar_transaccion, ejecutar_pago
 from tools.price_tools import get_token_price, get_profit_index, get_multi_price
+from tools.tx_tools import scan_all_balances
 
 mcp = FastMCP(
     name="crypto-payments",
@@ -158,6 +159,18 @@ def send_payment(destination: str, amount: float, token: str = "USDC") -> dict:
     if "error" in user_op:
         return user_op
     return ejecutar_pago(user_op, dry_run=True)
+
+
+# ─── SCAN ────────────────────────────────────────────────────────────────────
+
+@mcp.tool()
+def scan_testnet_balances() -> dict:
+    """
+    Escanea todas las redes testnet y muestra los saldos de cada wallet.
+    Retorna separado: redes con saldo, redes vacías y redes sin conexión.
+    Útil para saber dónde tenés fondos de faucet disponibles.
+    """
+    return scan_all_balances()
 
 
 # ─── WALLET ──────────────────────────────────────────────────────────────────

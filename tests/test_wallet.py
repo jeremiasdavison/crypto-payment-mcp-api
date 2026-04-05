@@ -46,7 +46,7 @@ def test_listar_redes(client, auth_headers):
     assert r.status_code == 200
     redes = r.json()["networks"]
     assert len(redes) >= 3
-    assert "Base Sepolia (testnet)" in redes
+    assert "Base Sepolia" in redes
 
 
 @pytest.mark.integration

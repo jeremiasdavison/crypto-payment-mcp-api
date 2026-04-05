@@ -41,7 +41,7 @@ def verify_api_key(key: str = Security(api_key_header)):
         raise HTTPException(status_code=401, detail="API key inválida o ausente")
     return key
 
-from tools.tx_tools import get_testnet_balance, send_native_token, get_tx_status
+from tools.tx_tools import get_testnet_balance, send_native_token, get_tx_status, scan_all_balances
 
 from tools.wallet_tools import (
     consultar_balance_onchain,
@@ -234,6 +234,19 @@ class SendTxRequest(BaseModel):
     to: str = Field(..., description="Dirección destino (0x...)")
     amount: float = Field(..., description="Monto en ETH o MATIC", gt=0)
     network: str = Field("Base Sepolia (testnet)", description="Red testnet a usar")
+
+
+@app.get(
+    "/testnet/scan",
+    summary="Escanear saldos en todas las redes",
+    description=(
+        "Consulta el balance de cada wallet testnet en su red correspondiente. "
+        "Retorna un resumen separado por: redes con saldo, redes vacías y redes sin conexión."
+    ),
+    tags=["Testnet"],
+)
+def testnet_scan(_: str = Depends(verify_api_key)):
+    return scan_all_balances()
 
 
 @app.get(
