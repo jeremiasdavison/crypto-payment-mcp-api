@@ -64,7 +64,7 @@ app = FastAPI(
         "Requiere header `X-API-Key` en todos los endpoints."
     ),
     version="0.1.0",
-    servers=servers or [{"url": "https://crypto-payment-mcp-api-production.up.railway.app"}],
+    servers=servers or [{"url": "https://cryoto-payment-mcp-api-production.up.railway.app"}],
 )
 
 app.add_middleware(
