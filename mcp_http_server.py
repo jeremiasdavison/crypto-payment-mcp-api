@@ -1,5 +1,7 @@
 from __future__ import annotations
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from fastapi.responses import StreamingResponse
+from starlette.middleware.base import BaseHTTPMiddleware
 
 import json
 import os
@@ -571,6 +573,39 @@ mcp._mcp_server.request_handlers[types.ReadResourceRequest] = _handle_read_resou
 streamable_app = mcp.streamable_http_app()
 
 app = FastAPI(title="Crypto Payments MCP", redirect_slashes=False)
+
+
+class SSEWrapMiddleware(BaseHTTPMiddleware):
+    """Wrap JSON responses on POST /mcp as SSE so ChatGPT's connector works."""
+
+    async def dispatch(self, request: Request, call_next):
+        response = await call_next(request)
+        if (
+            request.method == "POST"
+            and request.url.path.rstrip("/") == "/mcp"
+            and response.headers.get("content-type", "").startswith("application/json")
+        ):
+            chunks: list[bytes] = []
+            async for chunk in response.body_iterator:
+                chunks.append(chunk)
+            body = b"".join(chunks).decode("utf-8")
+
+            async def sse_body():
+                yield f"event: message\ndata: {body}\n\n"
+
+            return StreamingResponse(
+                sse_body(),
+                media_type="text/event-stream",
+                headers={
+                    "Cache-Control": "no-cache",
+                    "X-Accel-Buffering": "no",
+                },
+            )
+        return response
+
+
+app.add_middleware(SSEWrapMiddleware)
+
 
 @app.get("/")
 async def mcp_root():
