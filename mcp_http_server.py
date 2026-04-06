@@ -570,7 +570,7 @@ mcp._mcp_server.request_handlers[types.ReadResourceRequest] = _handle_read_resou
 # ── HTTP APP ──────────────────────────────────────────────────────────────────────
 streamable_app = mcp.streamable_http_app()
 
-app = FastAPI(title="Crypto Payments MCP")
+app = FastAPI(title="Crypto Payments MCP", redirect_slashes=False)
 
 @app.get("/")
 async def mcp_root():
