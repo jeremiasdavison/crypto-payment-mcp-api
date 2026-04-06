@@ -19,9 +19,11 @@ Generar una API key nueva:
 """
 import os
 import secrets
+from pathlib import Path
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, Query, Security, Depends
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 from fastapi.security.api_key import APIKeyHeader
 from pydantic import BaseModel, Field
 
@@ -302,8 +304,30 @@ def testnet_tx_status(
     return result
 
 
+# ─── WIDGETS (ChatGPT Apps SDK) ─────────────────────────────────────────────
+
+WIDGETS_DIR = Path(__file__).parent / "widgets"
+
+
+@app.get("/widgets/{widget_name}", include_in_schema=False)
+def serve_widget(widget_name: str):
+    path = WIDGETS_DIR / widget_name
+    if not path.exists():
+        raise HTTPException(status_code=404, detail="Widget not found")
+    return FileResponse(str(path), media_type="text/html")
+
+
 # ─── HEALTH ──────────────────────────────────────────────────────────────────
 
 @app.get("/", include_in_schema=False)
 def root():
-    return {"status": "ok", "service": "Crypto Payments API", "version": "0.1.0"}
+    return {"status": "ok", "service": "Crypto Payments API", "version": "0.2.0"}
+
+
+# ─── MCP HTTP ENDPOINT (ChatGPT Apps SDK) ───────────────────────────────────
+# Mounts the MCP Streamable HTTP server at /mcp
+# ChatGPT connector URL: https://<railway-url>/mcp
+
+from mcp_http_server import mcp as crypto_mcp
+
+app.mount("/mcp", crypto_mcp.streamable_http_app())

@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>P&L Dashboard</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+      background: #1a1a1a;
+      color: #f0f0f0;
+      min-height: 100vh;
+      padding: 16px;
+    }
+
+    /* ── HEADER ── */
+    .header { margin-bottom: 14px; }
+    .header h1 {
+      font-size: 15px;
+      font-weight: 600;
+      margin-bottom: 3px;
+    }
+    .header .subtitle {
+      font-size: 12px;
+      color: #555;
+    }
+
+    /* ── MAIN P&L CARD ── */
+    .main-card {
+      background: #222;
+      border: 1px solid #2e2e2e;
+      border-radius: 12px;
+      padding: 22px 16px 18px;
+      margin-bottom: 9px;
+      text-align: center;
+    }
+    .main-card.profit { border-color: rgba(34,197,94,0.22); }
+    .main-card.loss   { border-color: rgba(239,68,68,0.18); }
+
+    .pnl-label {
+      font-size: 10px;
+      color: #555;
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      margin-bottom: 8px;
+    }
+
+    .pnl-value {
+      font-size: 36px;
+      font-weight: 800;
+      letter-spacing: -0.03em;
+      line-height: 1;
+      margin-bottom: 5px;
+    }
+    .pnl-value.profit { color: #22c55e; }
+    .pnl-value.loss   { color: #ef4444; }
+
+    .pnl-pct {
+      font-size: 16px;
+      font-weight: 600;
+      margin-bottom: 10px;
+    }
+    .pnl-pct.profit { color: #16a34a; }
+    .pnl-pct.loss   { color: #dc2626; }
+
+    .badge-24h {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 11px;
+      font-weight: 500;
+      padding: 3px 9px;
+      border-radius: 20px;
+    }
+    .badge-24h.up   { background: rgba(34,197,94,0.12); color: #22c55e; }
+    .badge-24h.down { background: rgba(239,68,68,0.1);  color: #ef4444; }
+
+    /* ── DETAILS GRID ── */
+    .details-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+
+    .detail-card {
+      background: #222;
+      border: 1px solid #2e2e2e;
+      border-radius: 10px;
+      padding: 13px 14px;
+    }
+
+    .detail-label {
+      font-size: 10px;
+      color: #555;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      margin-bottom: 5px;
+    }
+    .detail-value {
+      font-size: 15px;
+      font-weight: 600;
+      color: #e0e0e0;
+    }
+    .detail-sub {
+      font-size: 11px;
+      color: #484848;
+      margin-top: 3px;
+      font-family: 'SF Mono', 'Consolas', monospace;
+    }
+
+    /* ── LOADING ── */
+    .loading {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 48px 20px;
+      color: #444;
+      font-size: 13px;
+      gap: 10px;
+    }
+    .spinner {
+      width: 20px;
+      height: 20px;
+      border: 2px solid #2a2a2a;
+      border-top-color: #3b82f6;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+  <div id="loading" class="loading">
+    <div class="spinner"></div>
+    <span>Calculating P&amp;L…</span>
+  </div>
+
+  <div id="content" style="display:none">
+    <div class="header">
+      <h1 id="title">P&amp;L Dashboard</h1>
+      <div id="subtitle" class="subtitle"></div>
+    </div>
+
+    <div id="main-card" class="main-card">
+      <div class="pnl-label">Total P&amp;L</div>
+      <div id="pnl-value" class="pnl-value">—</div>
+      <div id="pnl-pct"   class="pnl-pct">—</div>
+      <div id="badge-24h"></div>
+    </div>
+
+    <div class="details-grid">
+      <div class="detail-card">
+        <div class="detail-label">Entry</div>
+        <div id="entry-value" class="detail-value">—</div>
+        <div id="entry-sub"   class="detail-sub"></div>
+      </div>
+      <div class="detail-card">
+        <div class="detail-label">Current</div>
+        <div id="current-value" class="detail-value">—</div>
+        <div id="current-sub"   class="detail-sub"></div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    function fmt(n, currency) {
+      const sym = (currency || "USD").toUpperCase() === "USD"
+        ? "$"
+        : (currency || "").toUpperCase() + "\u00a0";
+      return sym + Math.abs(n).toLocaleString("en-US", {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      });
+    }
+
+    function renderData(data) {
+      const isProfit = (data.pnl || 0) >= 0;
+      const cls      = isProfit ? "profit" : "loss";
+      const sign     = isProfit ? "+" : "−";
+      const cur      = data.currency || "USD";
+
+      // Header
+      document.getElementById("title").textContent = `P&L — ${data.token || ""}`;
+      document.getElementById("subtitle").textContent =
+        `${data.amount} ${data.token} · ${isProfit ? "GAIN 📈" : "LOSS 📉"}`;
+
+      // Main card class
+      document.getElementById("main-card").className = `main-card ${cls}`;
+
+      // P&L value
+      const pnlEl = document.getElementById("pnl-value");
+      pnlEl.className = `pnl-value ${cls}`;
+      pnlEl.textContent = sign + fmt(data.pnl, cur);
+
+      // P&L %
+      const pctEl = document.getElementById("pnl-pct");
+      pctEl.className = `pnl-pct ${cls}`;
+      pctEl.textContent = sign + Math.abs(data.pnl_pct || 0).toFixed(2) + "%";
+
+      // 24h badge
+      if (data.change_24h_pct != null) {
+        const up = data.change_24h_pct >= 0;
+        document.getElementById("badge-24h").innerHTML = `
+          <span class="badge-24h ${up ? "up" : "down"}">
+            ${up ? "▲" : "▼"} ${Math.abs(data.change_24h_pct).toFixed(2)}% today
+          </span>`;
+      }
+
+      // Detail cards
+      document.getElementById("entry-value").textContent   = fmt(data.entry_value,   cur);
+      document.getElementById("entry-sub").textContent     = `@ ${fmt(data.entry_price,   cur)} / token`;
+      document.getElementById("current-value").textContent = fmt(data.current_value, cur);
+      document.getElementById("current-sub").textContent   = `@ ${fmt(data.current_price, cur)} / token`;
+
+      document.getElementById("loading").style.display = "none";
+      document.getElementById("content").style.display = "block";
+    }
+
+    window.addEventListener("message", (event) => {
+      const msg = event.data;
+      if (!msg || typeof msg !== "object") return;
+      if (msg.method === "ui/notifications/tool-result") {
+        const data = msg.params?.structuredContent;
+        if (data) renderData(data);
+      }
+    });
+  </script>
+</body>
+</html>
