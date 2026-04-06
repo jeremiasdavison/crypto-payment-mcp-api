@@ -328,6 +328,5 @@ def root():
 # Mounts the MCP Streamable HTTP server at /mcp
 # ChatGPT connector URL: https://<railway-url>/mcp
 
-from mcp_http_server import mcp as crypto_mcp
-
-app.mount("/mcp", crypto_mcp.streamable_http_app())
+from mcp_http_server import app as crypto_mcp_app
+app.mount("/mcp", crypto_mcp_app)

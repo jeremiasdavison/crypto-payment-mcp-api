@@ -1,4 +1,5 @@
 from __future__ import annotations
+from fastapi import FastAPI
 
 import json
 import os
@@ -567,8 +568,26 @@ mcp._mcp_server.request_handlers[types.ReadResourceRequest] = _handle_read_resou
 
 
 # ── HTTP APP ──────────────────────────────────────────────────────────────────────
+streamable_app = mcp.streamable_http_app()
 
-app = mcp.streamable_http_app()
+app = FastAPI(title="Crypto Payments MCP")
+
+@app.get("/")
+async def mcp_root():
+    return {
+        "status": "ok",
+        "service": "crypto-payments-mcp",
+        "transport": "streamable-http",
+    }
+
+@app.get("/health")
+async def mcp_health():
+    return {
+        "status": "ok",
+        "service": "crypto-payments-mcp",
+    }
+
+app.mount("/", streamable_app)
 
 try:
     from starlette.middleware.cors import CORSMiddleware
