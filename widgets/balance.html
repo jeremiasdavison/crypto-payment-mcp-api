@@ -187,19 +187,18 @@
 
     function renderData(data) {
       const all = [
-        ...(data.con_saldo    || []),
-        ...(data.vacias       || []),
-        ...(data.sin_conexion || []),
+        ...(data.walletsWithFunds || []),
+        ...(data.emptyWallets || []),
+        ...(data.offlineWallets || []),
       ];
 
-      // Summary badges
-      const r = data.resumen || {};
+      const r = data.summary || {};
       const summaryEl = document.getElementById("summary");
       summaryEl.innerHTML = `
-        <span class="badge badge-green">✓ ${r.redes_con_saldo || 0} with funds</span>
-        <span class="badge badge-gray">◯ ${r.redes_vacias || 0} empty</span>
-        ${(r.redes_sin_conexion || 0) > 0
-          ? `<span class="badge badge-red">⚠ ${r.redes_sin_conexion} offline</span>`
+        <span class="badge badge-green">✓ ${r.withFunds || 0} with funds</span>
+        <span class="badge badge-gray">◯ ${r.empty || 0} empty</span>
+        ${(r.offline || 0) > 0
+          ? `<span class="badge badge-red">⚠ ${r.offline} offline</span>`
           : ""}
       `;
 

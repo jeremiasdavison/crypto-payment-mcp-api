@@ -177,7 +177,7 @@
     }
 
     function renderData(data) {
-      const isProfit = (data.pnl || 0) >= 0;
+      const isProfit = (data.pnlValue || 0) >= 0;
       const cls      = isProfit ? "profit" : "loss";
       const sign     = isProfit ? "+" : "−";
       const cur      = data.currency || "USD";
@@ -193,27 +193,27 @@
       // P&L value
       const pnlEl = document.getElementById("pnl-value");
       pnlEl.className = `pnl-value ${cls}`;
-      pnlEl.textContent = sign + fmt(data.pnl, cur);
+      pnlEl.textContent = sign + fmt(data.pnlValue, cur);
 
       // P&L %
       const pctEl = document.getElementById("pnl-pct");
       pctEl.className = `pnl-pct ${cls}`;
-      pctEl.textContent = sign + Math.abs(data.pnl_pct || 0).toFixed(2) + "%";
+      pctEl.textContent = sign + Math.abs(data.pnlPct || 0).toFixed(2) + "%";
 
       // 24h badge
-      if (data.change_24h_pct != null) {
-        const up = data.change_24h_pct >= 0;
+      if (data.change24h != null) {
+        const up = data.change24h >= 0;
         document.getElementById("badge-24h").innerHTML = `
           <span class="badge-24h ${up ? "up" : "down"}">
-            ${up ? "▲" : "▼"} ${Math.abs(data.change_24h_pct).toFixed(2)}% today
+            ${up ? "▲" : "▼"} ${Math.abs(data.change24h).toFixed(2)}% today
           </span>`;
       }
 
       // Detail cards
-      document.getElementById("entry-value").textContent   = fmt(data.entry_value,   cur);
-      document.getElementById("entry-sub").textContent     = `@ ${fmt(data.entry_price,   cur)} / token`;
-      document.getElementById("current-value").textContent = fmt(data.current_value, cur);
-      document.getElementById("current-sub").textContent   = `@ ${fmt(data.current_price, cur)} / token`;
+      document.getElementById("entry-value").textContent   = fmt(data.entryValue,   cur);
+      document.getElementById("entry-sub").textContent     = `@ ${fmt(data.entryPrice,   cur)} / token`;
+      document.getElementById("current-value").textContent = fmt(data.currentValue, cur);
+      document.getElementById("current-sub").textContent   = `@ ${fmt(data.currentPrice, cur)} / token`;
 
       document.getElementById("loading").style.display = "none";
       document.getElementById("content").style.display = "block";

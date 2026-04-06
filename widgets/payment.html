@@ -227,12 +227,12 @@
     function renderData(data) {
       document.getElementById("amount-value").textContent = data.amount ?? "—";
       document.getElementById("amount-token").textContent = data.token  || "";
-      document.getElementById("to-addr").textContent      = shortAddr(data.to);
-      document.getElementById("gas").textContent          = data.estimated_gas || "—";
+      document.getElementById("to-addr").textContent      = shortAddr(data.resolvedAddress || data.destination);
+      document.getElementById("gas").textContent          = data.estimatedGas || "—";
 
       // Show ENS/alias row only if different from resolved address
-      const orig = data.to_original;
-      if (orig && orig !== data.to) {
+      const orig = data.originalDestination;
+      if (orig && orig !== data.resolvedAddress) {
         document.getElementById("to-original").textContent = orig;
       } else {
         document.getElementById("row-original").style.display = "none";

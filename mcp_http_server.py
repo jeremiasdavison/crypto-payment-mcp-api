@@ -1,17 +1,6 @@
-"""
-Crypto Payments — MCP HTTP Server (ChatGPT Apps SDK)
-====================================================
-Sigue el patrón oficial de OpenAI (pizzaz_server_python).
-4 tools con widgets visuales nativos en ChatGPT.
-
-Run:
-    uvicorn mcp_http_server:app --host 0.0.0.0 --port 8001
-
-ChatGPT Apps SDK connector URL:
-    https://<railway-url>/mcp
-"""
 from __future__ import annotations
 
+import json
 import os
 from copy import deepcopy
 from dataclasses import dataclass
@@ -20,16 +9,15 @@ from pathlib import Path
 from typing import Any, Dict, List
 
 import mcp.types as types
+from dotenv import load_dotenv
 from mcp.server.fastmcp import FastMCP
 from mcp.server.transport_security import TransportSecuritySettings
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
-from dotenv import load_dotenv
 
 load_dotenv("wallet.env")
 
-from tools.wallet_tools import REDES
 from tools.payment_tools import preparar_transaccion
-from tools.price_tools import get_token_price, get_profit_index, get_multi_price
+from tools.price_tools import get_multi_price, get_profit_index
 from tools.tx_tools import scan_all_balances
 
 # ── WIDGETS ──────────────────────────────────────────────────────────────────────
@@ -241,8 +229,112 @@ def _tool_meta(widget: CryptoWidget) -> Dict[str, Any]:
 
 def _invocation_meta(widget: CryptoWidget) -> Dict[str, Any]:
     return {
+        "openai/outputTemplate": widget.template_uri,
         "openai/toolInvocation/invoking": widget.invoking,
         "openai/toolInvocation/invoked": widget.invoked,
+        "openai/widgetAccessible": True,
+    }
+
+
+def _resource_meta(widget: CryptoWidget) -> Dict[str, Any]:
+    return {
+        "openai/outputTemplate": widget.template_uri,
+        "openai/widgetDescription": widget.title,
+        "openai/widgetPrefersBorder": True,
+        "openai/widgetAccessible": True,
+        "openai/widgetCSP": {
+            "connect_domains": [],
+            "resource_domains": [],
+        },
+    }
+
+
+def _safe_json_text(data: Dict[str, Any]) -> str:
+    try:
+        return json.dumps(data, ensure_ascii=False, indent=2)
+    except Exception:
+        return "{}"
+
+
+# ── UI NORMALIZERS ────────────────────────────────────────────────────────────────
+
+def _normalize_scan_result(data: Dict[str, Any]) -> Dict[str, Any]:
+    resumen = data.get("resumen", {}) or {}
+    return {
+        "summary": {
+            "totalNetworks": resumen.get("total_redes", 0),
+            "withFunds": resumen.get("redes_con_saldo", 0),
+            "empty": resumen.get("redes_vacias", 0),
+            "offline": resumen.get("redes_sin_conexion", 0),
+        },
+        "walletsWithFunds": data.get("con_saldo", []) or [],
+        "emptyWallets": data.get("vacias", []) or [],
+        "offlineWallets": data.get("sin_conexion", []) or [],
+        "raw": data,
+    }
+
+
+def _normalize_prices_result(data: Dict[str, Any], tokens: List[str], currency: str) -> Dict[str, Any]:
+    items: List[Dict[str, Any]] = []
+
+    if isinstance(data.get("prices"), dict):
+        for symbol, info in data["prices"].items():
+            info = info or {}
+            items.append(
+                {
+                    "symbol": symbol,
+                    "price": info.get("price"),
+                    "change24h": info.get("change_24h_pct"),
+                    "currency": info.get("currency", currency),
+                }
+            )
+    elif data.get("token") and data.get("price") is not None:
+        items.append(
+            {
+                "symbol": data.get("token"),
+                "price": data.get("price"),
+                "change24h": data.get("change_24h_pct"),
+                "currency": data.get("currency", currency),
+            }
+        )
+
+    return {
+        "currency": (data.get("currency") or currency or "usd").upper(),
+        "items": items,
+        "source": data.get("source"),
+        "timestamp": data.get("timestamp"),
+        "requestedTokens": tokens,
+        "raw": data,
+    }
+
+
+def _normalize_profit_result(data: Dict[str, Any], inp: ProfitInput) -> Dict[str, Any]:
+    return {
+        "token": inp.token,
+        "amount": inp.amount,
+        "currency": (data.get("currency") or inp.currency or "usd").upper(),
+        "entryPrice": data.get("entry_price", inp.entry_price),
+        "currentPrice": data.get("current_price"),
+        "entryValue": data.get("entry_value"),
+        "currentValue": data.get("current_value"),
+        "pnlValue": data.get("pnl"),
+        "pnlPct": data.get("pnl_pct"),
+        "change24h": data.get("change_24h_pct"),
+        "raw": data,
+    }
+
+
+def _normalize_payment_result(data: Dict[str, Any], inp: PaymentInput) -> Dict[str, Any]:
+    return {
+        "destination": data.get("to") or inp.destination,
+        "resolvedAddress": data.get("to"),
+        "originalDestination": data.get("to_original") or inp.destination,
+        "amount": data.get("amount", inp.amount),
+        "token": data.get("token", inp.token),
+        "estimatedGas": data.get("estimated_gas"),
+        "network": data.get("network"),
+        "status": "review",
+        "raw": data,
     }
 
 
@@ -308,7 +400,7 @@ async def _list_resources() -> List[types.Resource]:
             uri=w.template_uri,
             description=f"{w.title} widget",
             mimeType=MIME_TYPE,
-            _meta=_tool_meta(w),
+            _meta=_resource_meta(w),
         )
         for w in widgets
     ]
@@ -323,7 +415,7 @@ async def _list_resource_templates() -> List[types.ResourceTemplate]:
             uriTemplate=w.template_uri,
             description=f"{w.title} widget",
             mimeType=MIME_TYPE,
-            _meta=_tool_meta(w),
+            _meta=_resource_meta(w),
         )
         for w in widgets
     ]
@@ -338,6 +430,7 @@ async def _handle_read_resource(req: types.ReadResourceRequest) -> types.ServerR
                 _meta={"error": f"Unknown resource: {req.params.uri}"},
             )
         )
+
     return types.ServerResult(
         types.ReadResourceResult(
             contents=[
@@ -345,7 +438,7 @@ async def _handle_read_resource(req: types.ReadResourceRequest) -> types.ServerR
                     uri=widget.template_uri,
                     mimeType=MIME_TYPE,
                     text=widget.html,
-                    _meta=_tool_meta(widget),
+                    _meta=_resource_meta(widget),
                 )
             ]
         )
@@ -358,30 +451,35 @@ async def _call_tool_request(req: types.CallToolRequest) -> types.ServerResult:
 
     try:
         if name == "scan_testnet_balances":
-            data = scan_all_balances()
+            raw_data = scan_all_balances()
             widget = WIDGETS_BY_ID["scan_testnet_balances"]
-            r = data.get("resumen", {})
+            ui_data = _normalize_scan_result(raw_data)
+            s = ui_data["summary"]
+
             return types.ServerResult(
                 types.CallToolResult(
                     content=[
                         types.TextContent(
                             type="text",
                             text=(
-                                f"Scanned {r.get('total_redes', 0)} networks. "
-                                f"{r.get('redes_con_saldo', 0)} with funds, "
-                                f"{r.get('redes_vacias', 0)} empty."
+                                f"Scanned {s.get('totalNetworks', 0)} networks. "
+                                f"{s.get('withFunds', 0)} with funds, "
+                                f"{s.get('empty', 0)} empty, "
+                                f"{s.get('offline', 0)} offline."
                             ),
                         )
                     ],
-                    structuredContent=data,
+                    structuredContent=ui_data,
                     _meta=_invocation_meta(widget),
                 )
             )
 
         elif name == "get_prices":
             inp = PricesInput.model_validate(args)
-            data = get_multi_price(inp.tokens, inp.currency)
+            raw_data = get_multi_price(inp.tokens, inp.currency)
             widget = WIDGETS_BY_ID["get_prices"]
+            ui_data = _normalize_prices_result(raw_data, inp.tokens, inp.currency)
+
             return types.ServerResult(
                 types.CallToolResult(
                     content=[
@@ -390,16 +488,18 @@ async def _call_tool_request(req: types.CallToolRequest) -> types.ServerResult:
                             text=f"Prices loaded for: {', '.join(inp.tokens)}",
                         )
                     ],
-                    structuredContent=data,
+                    structuredContent=ui_data,
                     _meta=_invocation_meta(widget),
                 )
             )
 
         elif name == "get_profit":
             inp = ProfitInput.model_validate(args)
-            data = get_profit_index(inp.token, inp.entry_price, inp.amount, inp.currency)
+            raw_data = get_profit_index(inp.token, inp.entry_price, inp.amount, inp.currency)
             widget = WIDGETS_BY_ID["get_profit"]
-            pnl_pct = data.get("pnl_pct", 0)
+            ui_data = _normalize_profit_result(raw_data, inp)
+            pnl_pct = ui_data.get("pnlPct") or 0
+
             return types.ServerResult(
                 types.CallToolResult(
                     content=[
@@ -408,24 +508,30 @@ async def _call_tool_request(req: types.CallToolRequest) -> types.ServerResult:
                             text=f"P&L for {inp.amount} {inp.token}: {pnl_pct:+.2f}%",
                         )
                     ],
-                    structuredContent=data,
+                    structuredContent=ui_data,
                     _meta=_invocation_meta(widget),
                 )
             )
 
         elif name == "prepare_payment":
             inp = PaymentInput.model_validate(args)
-            data = preparar_transaccion(inp.destination, inp.amount, inp.token)
+            raw_data = preparar_transaccion(inp.destination, inp.amount, inp.token)
             widget = WIDGETS_BY_ID["prepare_payment"]
+            ui_data = _normalize_payment_result(raw_data, inp)
+
             return types.ServerResult(
                 types.CallToolResult(
                     content=[
                         types.TextContent(
                             type="text",
-                            text=f"Payment ready: {inp.amount} {inp.token} → {inp.destination}",
+                            text=(
+                                f"Payment ready: "
+                                f"{ui_data.get('amount')} {ui_data.get('token')} "
+                                f"→ {ui_data.get('originalDestination')}"
+                            ),
                         )
                     ],
-                    structuredContent=data,
+                    structuredContent=ui_data,
                     _meta=_invocation_meta(widget),
                 )
             )
@@ -442,6 +548,7 @@ async def _call_tool_request(req: types.CallToolRequest) -> types.ServerResult:
         return types.ServerResult(
             types.CallToolResult(
                 content=[types.TextContent(type="text", text=f"Input error: {exc.errors()}")],
+                structuredContent={"error": "validation_error", "details": exc.errors()},
                 isError=True,
             )
         )
@@ -449,6 +556,7 @@ async def _call_tool_request(req: types.CallToolRequest) -> types.ServerResult:
         return types.ServerResult(
             types.CallToolResult(
                 content=[types.TextContent(type="text", text=f"Error: {exc}")],
+                structuredContent={"error": str(exc)},
                 isError=True,
             )
         )

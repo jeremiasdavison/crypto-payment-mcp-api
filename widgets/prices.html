@@ -134,25 +134,7 @@
     }
 
     function normalizeTokens(data) {
-      if (data.prices) {
-        // get_prices (multi) format
-        const cur = data.currency || "USD";
-        return Object.entries(data.prices).map(([symbol, info]) => ({
-          symbol,
-          price:  info.price,
-          change: info.change_24h_pct,
-          currency: cur,
-        }));
-      }
-      if (data.token && data.price !== undefined) {
-        // get_price (single) format
-        return [{
-          symbol:   data.token,
-          price:    data.price,
-          change:   data.change_24h_pct,
-          currency: data.currency || "USD",
-        }];
-      }
+      if (Array.isArray(data.items)) return data.items;
       return [];
     }
 
@@ -169,7 +151,7 @@
 
       // Price cards
       document.getElementById("grid").innerHTML = tokens.map(t => {
-        const ch  = t.change;
+        const ch  = t.change24h;
         let cls   = "neutral";
         let icon  = "–";
         if (ch > 0)  { cls = "up";   icon = "▲"; }
