@@ -1,4 +1,5 @@
 from __future__ import annotations
+from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from starlette.middleware.cors import CORSMiddleware
 
@@ -571,9 +572,16 @@ mcp._mcp_server.request_handlers[types.ReadResourceRequest] = _handle_read_resou
 # ── HTTP APP ──────────────────────────────────────────────────────────────────────
 streamable_app = mcp.streamable_http_app()
 
-app = FastAPI(title="Crypto Payments MCP", redirect_slashes=False)
 
-# CORS must be added first so it wraps all routes including the mounted MCP app
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Trigger the MCP streamable app lifespan so its task group is initialized
+    async with streamable_app.router.lifespan_context(app):
+        yield
+
+
+app = FastAPI(title="Crypto Payments MCP", redirect_slashes=False, lifespan=lifespan)
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
