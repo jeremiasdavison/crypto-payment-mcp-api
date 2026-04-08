@@ -1,7 +1,6 @@
 from __future__ import annotations
-from fastapi import FastAPI, Request
-from fastapi.responses import StreamingResponse
-from starlette.middleware.base import BaseHTTPMiddleware
+from fastapi import FastAPI
+from starlette.middleware.cors import CORSMiddleware
 
 import json
 import os
@@ -574,38 +573,14 @@ streamable_app = mcp.streamable_http_app()
 
 app = FastAPI(title="Crypto Payments MCP", redirect_slashes=False)
 
-
-class SSEWrapMiddleware(BaseHTTPMiddleware):
-    """Wrap JSON responses on POST /mcp as SSE so ChatGPT's connector works."""
-
-    async def dispatch(self, request: Request, call_next):
-        response = await call_next(request)
-        if (
-            request.method == "POST"
-            and request.url.path.rstrip("/") == "/mcp"
-            and response.headers.get("content-type", "").startswith("application/json")
-        ):
-            chunks: list[bytes] = []
-            async for chunk in response.body_iterator:
-                chunks.append(chunk)
-            body = b"".join(chunks).decode("utf-8")
-
-            async def sse_body():
-                yield f"event: message\ndata: {body}\n\n"
-
-            return StreamingResponse(
-                sse_body(),
-                media_type="text/event-stream",
-                headers={
-                    "Cache-Control": "no-cache",
-                    "Connection": "keep-alive",
-                    "X-Accel-Buffering": "no",
-                },
-            )
-        return response
-
-
-app.add_middleware(SSEWrapMiddleware)
+# CORS must be added first so it wraps all routes including the mounted MCP app
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+    allow_credentials=False,
+)
 
 
 @app.get("/")
@@ -616,6 +591,7 @@ async def mcp_root():
         "transport": "streamable-http",
     }
 
+
 @app.get("/health")
 async def mcp_health():
     return {
@@ -623,20 +599,8 @@ async def mcp_health():
         "service": "crypto-payments-mcp",
     }
 
+
 app.mount("/", streamable_app)
-
-try:
-    from starlette.middleware.cors import CORSMiddleware
-
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origins=["*"],
-        allow_methods=["*"],
-        allow_headers=["*"],
-        allow_credentials=False,
-    )
-except Exception:
-    pass
 
 
 if __name__ == "__main__":
