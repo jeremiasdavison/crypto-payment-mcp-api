@@ -957,15 +957,6 @@ app.add_middleware(
 )
 
 
-@app.get("/")
-async def mcp_root():
-    return {
-        "status": "ok",
-        "service": "crypto-payments-mcp",
-        "transport": "streamable-http",
-    }
-
-
 @app.get("/health")
 async def mcp_health():
     return {
